@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MemoNúmeros - Dictado y Memoria</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Canvas Confetti Library para efectos visuales al ganar -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <!-- Google Fonts: Fredoka & Quicksand -->
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Quicksand:wght@500;700&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Quicksand', sans-serif;
+            background: linear-gradient(135deg, #a8ff78 0%, #78ffd6 100%);
+            min-height: 100vh;
+        }
+
+        h1, h2, h3, .font-fredoka {
+            font-family: 'Fredoka', cursive;
+        }
+
+        /* Animaciones personalizadas */
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-10px) rotate(2deg); }
+        }
+
+        @keyframes blink {
+            0%, 90%, 100% { transform: scaleY(1); }
+            95% { transform: scaleY(0.1); }
+        }
+
+        @keyframes speakWave {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.06); }
+        }
+
+        @keyframes pulseGlow {
+            0%, 100% { filter: drop-shadow(0 0 10px rgba(59, 130, 246, 0.6)); }
+            50% { filter: drop-shadow(0 0 20px rgba(16, 185, 129, 0.8)); }
+        }
+
+        .animate-float {
+            animation: float 3.5s ease-in-out infinite;
+        }
+
+        .eye-blink {
+            transform-origin: center;
+            animation: blink 4s infinite;
+        }
+
+        .speaking-active {
+            animation: speakWave 0.5s ease-in-out infinite, pulseGlow 1.5s infinite;
+        }
+
+        /* Botones estilo infantil con efecto 3D */
+        .btn-kid {
+            transition: all 0.15s ease-out;
+            box-shadow: 0 6px 0 rgba(0, 0, 0, 0.15);
+        }
+
+        .btn-kid:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 0 rgba(0, 0, 0, 0.15);
+        }
+
+        .btn-kid:active {
+            transform: translateY(3px);
+            box-shadow: 0 2px 0 rgba(0, 0, 0, 0.15);
+        }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen text-slate-800 antialiased selection:bg-yellow-300">
+
+    <!-- OVERLAY DE INICIO / DESBLOQUEO DE AUDIO (Indispensable para móviles/iOS/Android) -->
+    <div id="welcome-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full text-center shadow-2xl border-4 border-yellow-300 animate-float">
+            <div class="w-24 h-24 bg-yellow-400 rounded-full flex items-center justify-center text-5xl mx-auto mb-4 shadow-inner">
+                🤖
+            </div>
+            <h1 class="font-fredoka text-3xl text-purple-700 mb-2">¡MemoNúmeros!</h1>
+            <p class="text-slate-600 font-bold mb-6 text-sm sm:text-base">
+                Escucha atentamente al robot, memoriza el número y escríbelo. ¡Presiona el botón para activar el sonido y empezar a jugar!
+            </p>
+            <button onclick="unlockAudioAndStart()" class="btn-kid w-full bg-emerald-500 hover:bg-emerald-600 text-white font-fredoka text-2xl py-4 rounded-2xl flex items-center justify-center gap-3">
+                <span>🚀</span> ¡Empezar a Jugar!
+            </button>
+        </div>
+    </div>
+
+    <!-- Header / Menú Superior -->
+    <header class="w-full bg-white/90 backdrop-blur-md shadow-md sticky top-0 z-40">
+        <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+            <div class="flex items-center gap-3 cursor-pointer" onclick="switchSection('game')">
+                <div class="w-10 h-10 bg-yellow-400 rounded-full flex items-center justify-center text-2xl shadow-inner">
+                    🔢
+                </div>
+                <span class="font-fredoka text-2xl text-purple-600 tracking-wide font-bold">MemoNúmeros</span>
+            </div>
+
+            <!-- Menú de Navegación -->
+            <nav class="flex items-center gap-2 sm:gap-4">
+                <button onclick="switchSection('game')" id="nav-game" class="px-4 py-2 rounded-2xl font-bold transition bg-purple-100 text-purple-700 hover:bg-purple-200">
+                    🎮 Jugar
+                </button>
+                <button onclick="switchSection('settings')" id="nav-settings" class="px-4 py-2 rounded-2xl font-bold transition bg-slate-100 text-slate-700 hover:bg-slate-200">
+                    ⚙️ Ajustes
+                </button>
+                <!-- Botón PayPal -->
+                <a href="https://www.paypal.me/isaisoza6" target="_blank" rel="noopener noreferrer" 
+                   onclick="playBeep(600, 0.08)"
+                   class="flex items-center gap-1.5 px-3.5 py-2 bg-amber-400 hover:bg-amber-500 text-amber-950 font-bold rounded-2xl shadow-sm transition text-sm">
+                    <span>❤️</span>
+                    <span class="hidden sm:inline">Apoyar</span>
+                </a>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Contenido Principal -->
+    <main class="flex-grow flex items-center justify-center p-4">
+        <div class="w-full max-w-xl">
+
+            <!-- SECCIÓN DEL JUEGO -->
+            <section id="sec-game" class="bg-white rounded-3xl p-6 sm:p-8 shadow-2xl border-4 border-white/60 relative overflow-hidden">
+                
+                <!-- Puntuación y Racha -->
+                <div class="flex justify-between items-center mb-6 bg-purple-50 p-3 rounded-2xl border border-purple-100">
+                    <div class="flex items-center gap-2">
+                        <span class="text-2xl">⭐</span>
+                        <div>
+                            <p class="text-xs text-slate-500 font-bold uppercase">Puntos</p>
+                            <p id="score-display" class="font-fredoka text-xl text-purple-700">0</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-2xl">🔥</span>
+                        <div>
+                            <p class="text-xs text-slate-500 font-bold uppercase">Racha</p>
+                            <p id="streak-display" class="font-fredoka text-xl text-orange-500">0</p>
+                        </div>
+                    </div>
+                    <div class="bg-purple-200 text-purple-800 font-bold px-3 py-1 rounded-xl text-sm">
+                        <span id="digits-badge">3</span> Dígitos
+                    </div>
+                </div>
+
+                <!-- Asistente Virtual SVG -->
+                <div class="flex flex-col items-center mb-6">
+                    <div id="avatar-container" class="w-36 h-36 relative animate-float cursor-pointer" onclick="speakCurrentNumber()">
+                        <svg viewBox="0 0 200 200" class="w-full h-full drop-shadow-md">
+                            <!-- Cuerpo / Robot -->
+                            <rect x="40" y="50" width="120" height="110" rx="30" fill="#4F46E5" />
+                            <rect x="50" y="60" width="100" height="90" rx="20" fill="#6366F1" />
+                            
+                            <!-- Orejas/Antenas -->
+                            <circle cx="30" cy="105" r="12" fill="#F59E0B" />
+                            <circle cx="170" cy="105" r="12" fill="#F59E0B" />
+                            <rect x="92" y="20" width="16" height="35" rx="8" fill="#9CA3AF" />
+                            <circle cx="100" cy="20" r="14" fill="#EF4444" id="antenna-light" />
+
+                            <!-- Pantalla de la Cara -->
+                            <rect x="60" y="75" width="80" height="55" rx="15" fill="#1E293B" />
+
+                            <!-- Ojos Animados -->
+                            <g class="eye-blink">
+                                <circle cx="80" cy="98" r="9" fill="#38BDF8" />
+                                <circle cx="82" cy="96" r="3" fill="#FFFFFF" />
+                                <circle cx="120" cy="98" r="9" fill="#38BDF8" />
+                                <circle cx="122" cy="96" r="3" fill="#FFFFFF" />
+                            </g>
+
+                            <!-- Boca (cambia dinámicamente) -->
+                            <path id="robot-mouth" d="M 85 118 Q 100 128 115 118" stroke="#38BDF8" stroke-width="4" stroke-linecap="round" fill="none" />
+                        </svg>
+                        
+                        <!-- Globo de texto -->
+                        <div id="speech-bubble" class="absolute -top-3 -right-2 bg-yellow-300 text-yellow-950 px-3 py-1 rounded-2xl text-xs font-bold shadow-md transform rotate-6 border-2 border-white">
+                            ¡Tócame! 🔊
+                        </div>
+                    </div>
+
+                    <h2 id="assistant-status" class="text-slate-600 font-bold text-center mt-2 text-sm sm:text-base">
+                        Presiona "Nuevo Número" para iniciar.
+                    </h2>
+                </div>
+
+                <!-- Botones de Acción para Dictado -->
+                <div class="flex justify-center gap-3 mb-6">
+                    <button id="btn-generate" onclick="generateNewNumber()" 
+                            class="btn-kid bg-emerald-500 hover:bg-emerald-600 text-white font-fredoka px-5 py-3 rounded-2xl text-lg flex items-center gap-2">
+                        <span>🎲</span> Nuevo Número
+                    </button>
+
+                    <button id="btn-repeat" onclick="speakCurrentNumber()" disabled
+                            class="btn-kid bg-sky-500 hover:bg-sky-600 text-white font-fredoka px-5 py-3 rounded-2xl text-lg flex items-center gap-2 opacity-50 cursor-not-allowed">
+                        <span>🔊</span> Escuchar de Nuevo
+                    </button>
+                </div>
+
+                <!-- Pista Visual Opcional -->
+                <div id="reveal-container" class="hidden mb-4 text-center">
+                    <button onclick="toggleReveal()" class="text-xs text-purple-600 font-bold underline py-1 px-2 rounded hover:bg-purple-50">
+                        <span id="reveal-btn-text">👁️ Mostrar Pista Visual</span>
+                    </button>
+                    <p id="revealed-number" class="hidden font-fredoka text-3xl text-purple-600 tracking-widest mt-2 bg-purple-50 py-2 rounded-xl border border-purple-200"></p>
+                </div>
+
+                <!-- Formulario del Niño -->
+                <form onsubmit="checkAnswer(event)" class="space-y-4">
+                    <div class="relative">
+                        <input type="text" id="user-input" inputmode="numeric" pattern="[0-9]*" placeholder="¿Qué número dijo?" autocomplete="off"
+                               class="w-full text-center text-3xl sm:text-4xl font-fredoka tracking-widest py-4 px-4 rounded-2xl border-4 border-purple-300 focus:border-purple-500 focus:outline-none shadow-inner text-slate-700 bg-slate-50 transition">
+                    </div>
+
+                    <button type="submit" id="btn-check" disabled
+                            class="btn-kid w-full bg-yellow-400 hover:bg-yellow-500 text-yellow-950 font-fredoka text-xl py-3.5 rounded-2xl flex items-center justify-center gap-2 opacity-50 cursor-not-allowed">
+                        <span>✨</span> ¡Comprobar Respuesta!
+                    </button>
+                </form>
+
+                <!-- Feedback Mensajes -->
+                <div id="feedback-message" class="mt-4 p-3 rounded-2xl text-center font-bold hidden transition-all"></div>
+            </section>
+
+            <!-- SECCIÓN DE AJUSTES -->
+            <section id="sec-settings" class="bg-white rounded-3xl p-6 sm:p-8 shadow-2xl border-4 border-white/60 hidden">
+                <h2 class="font-fredoka text-2xl text-purple-700 mb-6 flex items-center gap-2">
+                    <span>⚙️</span> Ajustes de Juego
+                </h2>
+
+                <div class="space-y-6">
+                    <!-- Cantidad de Dígitos -->
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-2">
+                            Dificultad (Dígitos): <span id="digit-count-label" class="text-purple-600 font-fredoka text-2xl">3</span>
+                        </label>
+                        <input type="range" id="digit-range" min="2" max="8" value="3" 
+                               oninput="updateDigitLabel(this.value)"
+                               class="w-full h-3 bg-purple-200 rounded-lg appearance-none cursor-pointer accent-purple-600">
+                        <div class="flex justify-between text-xs font-bold text-slate-400 mt-1">
+                            <span>2 (Fácil)</span>
+                            <span>5 (Medio)</span>
+                            <span>8 (Experto)</span>
+                        </div>
+                    </div>
+
+                    <!-- Velocidad de Voz -->
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-2">
+                            Velocidad de Voz: <span id="speed-label" class="text-purple-600 font-fredoka text-lg">Pausada</span>
+                        </label>
+                        <div class="grid grid-cols-3 gap-2">
+                            <button type="button" onclick="setSpeechRate(0.55, 'Lenta', this)" class="speed-btn p-2 rounded-xl border-2 font-bold text-sm text-slate-600 border-slate-200 hover:border-purple-400">🐢 Lenta</button>
+                            <button type="button" onclick="setSpeechRate(0.8, 'Pausada', this)" class="speed-btn p-2 rounded-xl border-2 font-bold text-sm text-slate-600 border-purple-500 bg-purple-50">🏃 Pausada</button>
+                            <button type="button" onclick="setSpeechRate(1.1, 'Rápida', this)" class="speed-btn p-2 rounded-xl border-2 font-bold text-sm text-slate-600 border-slate-200 hover:border-purple-400">⚡ Rápida</button>
+                        </div>
+                    </div>
+
+                    <!-- Botón Guardar -->
+                    <button onclick="saveSettings()" class="btn-kid w-full bg-purple-600 hover:bg-purple-700 text-white font-fredoka text-lg py-3 rounded-2xl">
+                        💾 Guardar y Volver
+                    </button>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Pie de página con enlace de PayPal -->
+    <footer class="w-full py-4 text-center text-sm font-bold text-slate-600 bg-white/40 backdrop-blur-sm mt-auto">
+        <p class="flex items-center justify-center gap-1 flex-wrap px-4">
+            <span>Creado con cariño para aprender jugando.</span>
+            <a href="https://www.paypal.me/isaisoza6" target="_blank" rel="noopener noreferrer" 
+               onclick="playBeep(600, 0.08)"
+               class="text-purple-700 hover:underline flex items-center gap-1 font-bold ml-1">
+                <span>☕ Apoyar en PayPal</span>
+            </a>
+        </p>
+    </footer>
+
+    <script>
+        // Estado Global
+        let currentNumber = "";
+        let digitLength = 3;
+        let score = 0;
+        let streak = 0;
+        let speechRate = 0.8;
+        let audioUnlocked = false;
+
+        // Motor Web Audio API para Efectos Sonoros Sintéticos (Garantiza sonido siempre)
+        let audioCtx = null;
+
+        function initAudioContext() {
+            if (!audioCtx) {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (AudioContext) {
+                    audioCtx = new AudioContext();
+                }
+            }
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        // Tono Beep sintético
+        function playBeep(freq = 440, duration = 0.1, type = 'sine') {
+            try {
+                initAudioContext();
+                if (!audioCtx) return;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = type;
+                osc.frequency.value = freq;
+                gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + duration);
+            } catch (e) {
+                console.log("Web Audio error:", e);
+            }
+        }
+
+        // Sonidos de Acierto y Error
+        function playSuccessSound() {
+            try {
+                initAudioContext();
+                if (!audioCtx) return;
+                const now = audioCtx.currentTime;
+                const notes = [523.25, 659.25, 783.99, 1046.50]; // Do, Mi, Sol, Do (Acorde Alegre)
+                notes.forEach((freq, idx) => {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.frequency.value = freq;
+                    gain.gain.setValueAtTime(0.12, now + idx * 0.08);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.08 + 0.2);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now + idx * 0.08);
+                    osc.stop(now + idx * 0.08 + 0.2);
+                });
+            } catch(e){}
+        }
+
+        function playErrorSound() {
+            try {
+                initAudioContext();
+                if (!audioCtx) return;
+                const now = audioCtx.currentTime;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(180, now);
+                osc.frequency.exponentialRampToValueAtTime(90, now + 0.3);
+                gain.gain.setValueAtTime(0.15, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now);
+                osc.stop(now + 0.3);
+            } catch(e){}
+        }
+
+        // Síntesis de Voz (SpeechSynthesis)
+        let synth = window.speechSynthesis;
+        let spanishVoice = null;
+
+        function loadVoices() {
+            if (!synth) return;
+            const voices = synth.getVoices();
+            // Buscar voz en español
+            spanishVoice = voices.find(v => v.lang.startsWith('es') || v.lang.includes('ES')) || voices[0];
+        }
+
+        if (synth) {
+            loadVoices();
+            if (speechSynthesis.onvoiceschanged !== undefined) {
+                speechSynthesis.onvoiceschanged = loadVoices;
+            }
+        }
+
+        // Función de desbloqueo al presionar 'Empezar'
+        function unlockAudioAndStart() {
+            initAudioContext();
+            audioUnlocked = true;
+
+            // Desbloquear síntesis de voz mediante un utterance silencioso
+            if (synth) {
+                synth.cancel();
+                const silentUtterance = new SpeechSynthesisUtterance("");
+                silentUtterance.volume = 0;
+                synth.speak(silentUtterance);
+            }
+
+            playBeep(523.25, 0.15);
+
+            // Ocultar modal
+            document.getElementById('welcome-modal').classList.add('hidden');
+
+            // Iniciar juego
+            generateNewNumber();
+        }
+
+        // Navegación de secciones
+        function switchSection(section) {
+            playBeep(450, 0.05);
+            const gameSec = document.getElementById('sec-game');
+            const settingsSec = document.getElementById('sec-settings');
+            const navGame = document.getElementById('nav-game');
+            const navSettings = document.getElementById('nav-settings');
+
+            if (section === 'game') {
+                gameSec.classList.remove('hidden');
+                settingsSec.classList.add('hidden');
+                navGame.className = "px-4 py-2 rounded-2xl font-bold transition bg-purple-100 text-purple-700 hover:bg-purple-200";
+                navSettings.className = "px-4 py-2 rounded-2xl font-bold transition bg-slate-100 text-slate-700 hover:bg-slate-200";
+            } else {
+                gameSec.classList.add('hidden');
+                settingsSec.classList.remove('hidden');
+                navSettings.className = "px-4 py-2 rounded-2xl font-bold transition bg-purple-100 text-purple-700 hover:bg-purple-200";
+                navGame.className = "px-4 py-2 rounded-2xl font-bold transition bg-slate-100 text-slate-700 hover:bg-slate-200";
+            }
+        }
+
+        // Generar número aleatorio
+        function generateNewNumber() {
+            playBeep(580, 0.08);
+            let num = "";
+            for (let i = 0; i < digitLength; i++) {
+                if (i === 0) {
+                    num += Math.floor(Math.random() * 9) + 1;
+                } else {
+                    num += Math.floor(Math.random() * 10);
+                }
+            }
+            currentNumber = num;
+
+            // Habilitar controles
+            document.getElementById('btn-repeat').disabled = false;
+            document.getElementById('btn-repeat').classList.remove('opacity-50', 'cursor-not-allowed');
+            document.getElementById('btn-check').disabled = false;
+            document.getElementById('btn-check').classList.remove('opacity-50', 'cursor-not-allowed');
+            
+            // Limpiar inputs
+            const input = document.getElementById('user-input');
+            input.value = "";
+            input.focus();
+
+            // Pista visual
+            document.getElementById('revealed-number').innerText = currentNumber;
+            document.getElementById('reveal-container').classList.remove('hidden');
+            document.getElementById('revealed-number').classList.add('hidden');
+            document.getElementById('reveal-btn-text').innerText = "👁️ Mostrar Pista Visual";
+
+            hideFeedback();
+
+            // Dictar automáticamente
+            speakCurrentNumber();
+        }
+
+        // Reproducir dictado de número con animación del avatar
+        function speakCurrentNumber() {
+            if (!currentNumber) return;
+
+            playBeep(700, 0.05);
+
+            const avatar = document.getElementById('avatar-container');
+            const mouth = document.getElementById('robot-mouth');
+            const light = document.getElementById('antenna-light');
+            const status = document.getElementById('assistant-status');
+
+            avatar.classList.add('speaking-active');
+            light.setAttribute('fill', '#10B981'); // Verde activo
+            status.innerText = "¡Escucha con atención! 🎧";
+            mouth.setAttribute('d', 'M 80 115 Q 100 135 120 115');
+
+            // Separar dígitos con coma/espacio para articulación clara
+            const textToSpeak = currentNumber.split('').join(', ');
+
+            if (synth) {
+                synth.cancel(); // Cancelar lecturas anteriores
+                loadVoices();
+
+                const utterance = new SpeechSynthesisUtterance(textToSpeak);
+                utterance.rate = speechRate;
+                utterance.pitch = 1.15;
+                if (spanishVoice) utterance.voice = spanishVoice;
+
+                utterance.onend = () => {
+                    stopSpeakingAnimation();
+                };
+
+                utterance.onerror = () => {
+                    stopSpeakingAnimation();
+                };
+
+                synth.speak(utterance);
+            } else {
+                // Si la plataforma no soporta TTS
+                setTimeout(stopSpeakingAnimation, 2000);
+            }
+        }
+
+        function stopSpeakingAnimation() {
+            const avatar = document.getElementById('avatar-container');
+            const mouth = document.getElementById('robot-mouth');
+            const light = document.getElementById('antenna-light');
+            const status = document.getElementById('assistant-status');
+
+            avatar.classList.remove('speaking-active');
+            light.setAttribute('fill', '#EF4444');
+            status.innerText = "¡Escribe el número en el recuadro!";
+            mouth.setAttribute('d', 'M 85 118 Q 100 128 115 118');
+        }
+
+        // Comprobar la respuesta introducida
+        function checkAnswer(e) {
+            e.preventDefault();
+            const userInput = document.getElementById('user-input').value.trim();
+
+            if (!userInput) {
+                playBeep(300, 0.1);
+                showFeedback("⚠️ Escribe el número primero", "bg-amber-100", "text-amber-800");
+                return;
+            }
+
+            if (userInput === currentNumber) {
+                // ¡Acierto!
+                playSuccessSound();
+                score += digitLength * 10;
+                streak += 1;
+                updateStats();
+
+                confetti({
+                    particleCount: 110,
+                    spread: 80,
+                    origin: { y: 0.6 }
+                });
+
+                showFeedback("🎉 ¡Excelente! ¡Lo memorizaste perfectamente!", "bg-emerald-100", "text-emerald-800");
+                speakPhrase("¡Excelente trabajo!");
+
+                document.getElementById('btn-check').disabled = true;
+                document.getElementById('btn-check').classList.add('opacity-50', 'cursor-not-allowed');
+
+            } else {
+                // Error
+                playErrorSound();
+                streak = 0;
+                updateStats();
+
+                showFeedback(`❌ El número era ${currentNumber}. ¡Inténtalo de nuevo!`, "bg-rose-100", "text-rose-800");
+                speakPhrase("¡Sigue intentándolo!");
+            }
+        }
+
+        function speakPhrase(text) {
+            if (!synth) return;
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.rate = 0.9;
+            utterance.pitch = 1.2;
+            if (spanishVoice) utterance.voice = spanishVoice;
+            synth.speak(utterance);
+        }
+
+        // Ver u ocultar pista visual
+        function toggleReveal() {
+            playBeep(500, 0.05);
+            const revNum = document.getElementById('revealed-number');
+            const revText = document.getElementById('reveal-btn-text');
+            if (revNum.classList.contains('hidden')) {
+                revNum.classList.remove('hidden');
+                revText.innerText = "🙈 Ocultar Pista";
+            } else {
+                revNum.classList.add('hidden');
+                revText.innerText = "👁️ Mostrar Pista Visual";
+            }
+        }
+
+        // Mensajes de Feedback
+        function showFeedback(text, bgColor, textColor) {
+            const fb = document.getElementById('feedback-message');
+            fb.innerText = text;
+            fb.className = `mt-4 p-3 rounded-2xl text-center font-bold font-fredoka text-lg shadow-sm border ${bgColor} ${textColor}`;
+            fb.classList.remove('hidden');
+        }
+
+        function hideFeedback() {
+            document.getElementById('feedback-message').classList.add('hidden');
+        }
+
+        function updateStats() {
+            document.getElementById('score-display').innerText = score;
+            document.getElementById('streak-display').innerText = streak;
+        }
+
+        // Ajustes
+        function updateDigitLabel(val) {
+            digitLength = parseInt(val);
+            document.getElementById('digit-count-label').innerText = val;
+            document.getElementById('digits-badge').innerText = val;
+        }
+
+        function setSpeechRate(rate, labelText, btnElem) {
+            playBeep(450, 0.05);
+            speechRate = rate;
+            document.getElementById('speed-label').innerText = labelText;
+            
+            document.querySelectorAll('.speed-btn').forEach(btn => {
+                btn.classList.remove('border-purple-500', 'bg-purple-50');
+                btn.classList.add('border-slate-200');
+            });
+            btnElem.classList.add('border-purple-500', 'bg-purple-50');
+            btnElem.classList.remove('border-slate-200');
+        }
+
+        function saveSettings() {
+            switchSection('game');
+            generateNewNumber();
+        }
+    </script>
+</body>
+</html>
